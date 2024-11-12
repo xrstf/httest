@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2024 Christoph Mewes
+# SPDX-License-Identifier: MIT
+
 run:
   modules-download-mode: readonly
   deadline: 5m

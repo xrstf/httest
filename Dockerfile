@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2024 Christoph Mewes
+# SPDX-License-Identifier: MIT
+
 FROM golang:1.23-alpine AS builder
 
 RUN apk add -U make git
