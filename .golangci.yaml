@@ -1,0 +1,45 @@
+run:
+  modules-download-mode: readonly
+  deadline: 5m
+
+linters:
+  disable-all: true
+  enable:
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - copyloopvar
+    - depguard
+    - durationcheck
+    - errcheck
+    - errname
+    - errorlint
+    - goconst
+    - gocritic
+    - gocyclo
+    - godot
+    - gofmt
+    - gosimple
+    - govet
+    - importas
+    - ineffassign
+    - misspell
+    - noctx
+    - nolintlint
+    - nosprintfhostport
+    - predeclared
+    - promlinter
+    - staticcheck
+    - tenv
+    - unconvert
+    - unused
+    - wastedassign
+    - whitespace
+
+linters-settings:
+  depguard:
+    rules:
+      main:
+        deny:
+          - { pkg: io/ioutil, desc: https://go.dev/doc/go1.16#ioutil }
+          - { pkg: github.com/ghodss/yaml, desc: use sigs.k8s.io/yaml instead }
