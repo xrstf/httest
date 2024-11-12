@@ -48,16 +48,14 @@ func main() {
 
 	instance := os.Getenv("INSTANCE")
 
-	port, err := strconv.Atoi(listenPort)
-	if err != nil {
+	if _, err := strconv.Atoi(listenPort); err != nil {
 		log.Fatal(err)
 	}
 
-	log.Printf("Listening on %s:%d …\n", listenOn, port)
+	log.Printf("Listening on %s:%s…", listenOn, listenPort)
 
 	http.HandleFunc("/", newHandler(instance))
-	err = http.ListenAndServe(net.JoinHostPort(listenOn, strconv.Itoa(port)), nil)
-	if err != nil {
+	if err := http.ListenAndServe(net.JoinHostPort(listenOn, listenPort), nil); err != nil {
 		log.Fatal(err)
 	}
 }

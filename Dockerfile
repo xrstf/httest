@@ -1,11 +1,12 @@
-FROM golang:1.13-alpine as builder
+FROM golang:1.23-alpine AS builder
 
-WORKDIR /go/src/github.com/xrstf/httest
+RUN apk add -U make git
+
+WORKDIR /go/src/go.xrstf.de/httest
 COPY . .
-RUN go build -v -tags netgo -ldflags '-s -w' .
+RUN make
 
-FROM alpine:3.11
+FROM alpine:3.19
 
-WORKDIR /app
-ENTRYPOINT ["./httest"]
-COPY --from=builder /go/src/github.com/xrstf/httest/httest .
+ENTRYPOINT ["httest"]
+COPY --from=builder /go/src/go.xrstf.de/httest/_build/ /usr/local/bin/
