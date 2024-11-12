@@ -13,6 +13,7 @@ import (
 type options struct {
 	ListenOn   string
 	ServerName string
+	Trace      bool
 	TLS        tlsOptions
 }
 
@@ -29,6 +30,7 @@ func newDefaultOptions() options {
 func (o *options) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVarP(&o.ListenOn, "listen", "l", o.ListenOn, "Hostname and port to listen on.")
 	fs.StringVarP(&o.ServerName, "server-name", "", o.ServerName, "Unique server name to include in responses.")
+	fs.BoolVarP(&o.Trace, "trace", "t", o.Trace, "Log full request bodies on stderr.")
 	o.TLS.AddFlags(fs)
 }
 

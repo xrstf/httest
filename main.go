@@ -14,14 +14,8 @@ import (
 	"go.xrstf.de/httest/pkg/pki"
 )
 
-func newHandler(instance string) http.HandlerFunc {
+func newHandler(serverName string, trace bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if instance != "" {
-			log.Printf(`[%s] [%s] "%s %s" %s "%s"`, instance, r.RemoteAddr, r.Method, r.URL, r.Proto, r.UserAgent())
-		} else {
-			log.Printf(`[%s] "%s %s" %s "%s"`, r.RemoteAddr, r.Method, r.URL, r.Proto, r.UserAgent())
-		}
-
 		response, err := httputil.DumpRequest(r, true)
 		if err != nil {
 			log.Println(err)
@@ -30,11 +24,23 @@ func newHandler(instance string) http.HandlerFunc {
 			response = []byte("Could not dump incoming request.\n")
 		}
 
+		var logMessage string
+		if serverName != "" {
+			logMessage += fmt.Sprintf("[%s] ", serverName)
+		}
+		logMessage += fmt.Sprintf(`[%s] "%s %s" %s "%s"`, r.RemoteAddr, r.Method, r.URL, r.Proto, r.UserAgent())
+
+		if err == nil && trace {
+			logMessage += fmt.Sprintf("\n%s", string(response))
+		}
+
+		log.Println(logMessage)
+
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.Write(response)
 
-		if instance != "" {
-			w.Write([]byte(fmt.Sprintf("Instance: %s\n", instance)))
+		if serverName != "" {
+			w.Write([]byte(fmt.Sprintf("Instance: %s\n", serverName)))
 		}
 	}
 }
@@ -48,7 +54,7 @@ func main() {
 		log.Fatalf("Error: %v.", err)
 	}
 
-	http.HandleFunc("/", newHandler(o.ServerName))
+	http.HandleFunc("/", newHandler(o.ServerName, o.Trace))
 
 	if o.TLS.Enabled {
 		certFile, keyFile, err := pki.EnsurePKI(pki.Options{
