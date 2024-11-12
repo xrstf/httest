@@ -3,11 +3,10 @@ package main
 import (
 	"fmt"
 	"log"
-	"net"
 	"net/http"
 	"net/http/httputil"
-	"os"
-	"strconv"
+
+	"github.com/spf13/pflag"
 )
 
 func newHandler(instance string) http.HandlerFunc {
@@ -36,26 +35,14 @@ func newHandler(instance string) http.HandlerFunc {
 }
 
 func main() {
-	listenOn := os.Getenv("LISTEN_HOST")
-	if len(listenOn) == 0 {
-		listenOn = "0.0.0.0"
-	}
+	o := newDefaultOptions()
+	o.AddFlags(pflag.CommandLine)
+	pflag.Parse()
 
-	listenPort := os.Getenv("LISTEN_PORT")
-	if len(listenPort) == 0 {
-		listenPort = "8080"
-	}
+	log.Printf("Listening on %s…", o.ListenOn)
 
-	instance := os.Getenv("INSTANCE")
-
-	if _, err := strconv.Atoi(listenPort); err != nil {
-		log.Fatal(err)
-	}
-
-	log.Printf("Listening on %s:%s…", listenOn, listenPort)
-
-	http.HandleFunc("/", newHandler(instance))
-	if err := http.ListenAndServe(net.JoinHostPort(listenOn, listenPort), nil); err != nil {
+	http.HandleFunc("/", newHandler(o.ServerName))
+	if err := http.ListenAndServe(o.ListenOn, nil); err != nil {
 		log.Fatal(err)
 	}
 }
