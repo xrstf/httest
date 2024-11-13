@@ -9,7 +9,7 @@ WORKDIR /go/src/go.xrstf.de/httest
 COPY . .
 RUN make
 
-FROM alpine:3.19
+FROM gcr.io/distroless/static-debian12:nonroot
 
 ENTRYPOINT ["httest"]
 COPY --from=builder /go/src/go.xrstf.de/httest/_build/ /usr/local/bin/
