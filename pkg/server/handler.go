@@ -35,7 +35,8 @@ func NewHandler(log logrus.FieldLogger, opt options.Options) http.HandlerFunc {
 				dumped = []byte("Could not dump incoming request.\n")
 			}
 
-			receivedRequest = append(dumped, '\n')
+			dumped = append(dumped, '\n')
+			receivedRequest = dumped
 		}
 
 		if opt.Trace && opt.JSON {
@@ -78,6 +79,9 @@ func NewHandler(log logrus.FieldLogger, opt options.Options) http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Write(response)
+
+		if _, err := w.Write(response); err != nil {
+			log.WithError(err).Error("Failed to send response.")
+		}
 	}
 }

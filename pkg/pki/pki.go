@@ -275,7 +275,9 @@ func ensureFullChain(dst string, certs ...*x509.Certificate) error {
 	defer f.Close()
 
 	for _, cert := range certs {
-		f.Write(encodeCertPEM(cert))
+		if _, err := f.Write(encodeCertPEM(cert)); err != nil {
+			return err
+		}
 	}
 
 	return nil
