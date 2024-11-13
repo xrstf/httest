@@ -4,49 +4,18 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net/http"
-	"net/http/httputil"
 
 	"github.com/spf13/pflag"
 
+	"go.xrstf.de/httest/pkg/options"
 	"go.xrstf.de/httest/pkg/pki"
+	"go.xrstf.de/httest/pkg/server"
 )
 
-func newHandler(serverName string, trace bool) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		response, err := httputil.DumpRequest(r, true)
-		if err != nil {
-			log.Println(err)
-
-			w.WriteHeader(500)
-			response = []byte("Could not dump incoming request.\n")
-		}
-
-		var logMessage string
-		if serverName != "" {
-			logMessage += fmt.Sprintf("[%s] ", serverName)
-		}
-		logMessage += fmt.Sprintf(`[%s] "%s %s" %s "%s"`, r.RemoteAddr, r.Method, r.URL, r.Proto, r.UserAgent())
-
-		if err == nil && trace {
-			logMessage += fmt.Sprintf("\n%s", string(response))
-		}
-
-		log.Println(logMessage)
-
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Write(response)
-
-		if serverName != "" {
-			w.Write([]byte(fmt.Sprintf("Instance: %s\n", serverName)))
-		}
-	}
-}
-
 func main() {
-	o := newDefaultOptions()
+	o := options.NewDefault()
 	o.AddFlags(pflag.CommandLine)
 	pflag.Parse()
 
@@ -54,7 +23,7 @@ func main() {
 		log.Fatalf("Error: %v.", err)
 	}
 
-	http.HandleFunc("/", newHandler(o.ServerName, o.Trace))
+	http.HandleFunc("/", server.NewHandler(o))
 
 	if o.TLS.Enabled {
 		certFile, keyFile, err := pki.EnsurePKI(pki.Options{
