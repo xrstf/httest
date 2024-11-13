@@ -20,6 +20,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -35,43 +37,57 @@ type Options struct {
 	Hostnames []string
 }
 
-func EnsurePKI(o Options) (servingKeyFile string, servingCertFile string, err error) {
+type PKI struct {
+	CAFile          string
+	ServingCertFile string
+	FullchainFile   string
+	PrivateKeyFile  string
+}
+
+func EnsurePKI(log logrus.FieldLogger, o Options) (*PKI, error) {
 	caKeyFile := filepath.Join(o.Directory, "ca.key")
-	caKey, err := ensurePrivateKey(caKeyFile)
+	caKey, err := ensurePrivateKey(log, caKeyFile)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to ensure CA private key: %w", err)
+		return nil, fmt.Errorf("failed to ensure CA private key: %w", err)
 	}
 
 	caCertFile := filepath.Join(o.Directory, "ca.crt")
-	caCert, err := ensureCACertificate(caCertFile, caKey)
+	caCert, err := ensureCACertificate(log, caCertFile, caKey)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to ensure CA certificate: %w", err)
+		return nil, fmt.Errorf("failed to ensure CA certificate: %w", err)
 	}
 
-	servingKeyFile = filepath.Join(o.Directory, "serving.key")
-	servingKey, err := ensurePrivateKey(servingKeyFile)
+	servingKeyFile := filepath.Join(o.Directory, "serving.key")
+	servingKey, err := ensurePrivateKey(log, servingKeyFile)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to ensure serving certificate private key: %w", err)
+		return nil, fmt.Errorf("failed to ensure serving certificate private key: %w", err)
 	}
 
-	servingCertFile = filepath.Join(o.Directory, "serving.crt")
-	servingCert, err := ensureServingCertificate(servingCertFile, servingKey, o.Hostnames, caCert, caKey)
+	servingCertFile := filepath.Join(o.Directory, "serving.crt")
+	servingCert, err := ensureServingCertificate(log, servingCertFile, servingKey, o.Hostnames, caCert, caKey)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to ensure serving certificate: %w", err)
+		return nil, fmt.Errorf("failed to ensure serving certificate: %w", err)
 	}
 
 	fullchainCertFile := filepath.Join(o.Directory, "fullchain.crt")
 	if err := ensureFullChain(fullchainCertFile, servingCert, caCert); err != nil {
-		return "", "", fmt.Errorf("failed to ensure full chain certificate: %w", err)
+		return nil, fmt.Errorf("failed to ensure full chain certificate: %w", err)
 	}
 
-	return fullchainCertFile, servingKeyFile, nil
+	return &PKI{
+		CAFile:          caCertFile,
+		ServingCertFile: servingCertFile,
+		FullchainFile:   fullchainCertFile,
+		PrivateKeyFile:  servingKeyFile,
+	}, nil
 }
 
-func ensurePrivateKey(filename string) (any, error) {
+func ensurePrivateKey(log logrus.FieldLogger, filename string) (any, error) {
 	if key, err := readValidPrivateKey(filename); err == nil {
 		return key, nil
 	}
+
+	log.WithField("file", filename).Info("Creating private key…")
 
 	key, err := rsa.GenerateKey(rand.Reader, rsaKeySize)
 	if err != nil {
@@ -99,7 +115,7 @@ func readValidPrivateKey(filename string) (any, error) {
 	return parsePrivateKeyPEM(content)
 }
 
-func ensureCACertificate(filename string, key any) (*x509.Certificate, error) {
+func ensureCACertificate(log logrus.FieldLogger, filename string, key any) (*x509.Certificate, error) {
 	if cert, err := readCertificate(filename, key); err == nil {
 		return cert, nil
 	}
@@ -112,10 +128,12 @@ func ensureCACertificate(filename string, key any) (*x509.Certificate, error) {
 		IsCA:     true,
 	}
 
+	log.WithField("file", filename).Info("Creating CA certificate…")
+
 	return makeCertificate(filename, tmpl, key, caValidity, nil, key)
 }
 
-func ensureServingCertificate(filename string, certPrivKey any, hostnames []string, caCert *x509.Certificate, caPrivKey any) (*x509.Certificate, error) {
+func ensureServingCertificate(log logrus.FieldLogger, filename string, certPrivKey any, hostnames []string, caCert *x509.Certificate, caPrivKey any) (*x509.Certificate, error) {
 	if cert, err := readCertificate(filename, certPrivKey); err == nil {
 		return cert, nil
 	}
@@ -147,6 +165,8 @@ func ensureServingCertificate(filename string, certPrivKey any, hostnames []stri
 		KeyUsage:    x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
 		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 	}
+
+	log.WithField("file", filename).WithField("cn", hostnames[0]).Info("Creating serving certificate…")
 
 	return makeCertificate(filename, tmpl, certPrivKey, servingCertValidity, caCert, caPrivKey)
 }

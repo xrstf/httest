@@ -5,10 +5,10 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"runtime"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 
 	"go.xrstf.de/httest/pkg/options"
@@ -49,28 +49,44 @@ func main() {
 		return
 	}
 
-	if err := o.Validate(); err != nil {
-		log.Fatalf("Error: %v.", err)
+	log := logrus.New()
+	if o.JSON {
+		log.Formatter = &logrus.JSONFormatter{
+			DisableHTMLEscape: true,
+		}
+	} else {
+		log.Formatter = &logrus.TextFormatter{
+			FullTimestamp: true,
+			DisableQuote:  true,
+		}
 	}
 
-	http.HandleFunc("/", server.NewHandler(o))
+	if err := o.Validate(); err != nil {
+		log.WithError(err).Fatal("Invalid options.")
+	}
+
+	http.HandleFunc("/", server.NewHandler(log, o))
 
 	if o.TLS.Enabled {
-		certFile, keyFile, err := pki.EnsurePKI(pki.Options{
+		pkiInfo, err := pki.EnsurePKI(log, pki.Options{
 			Directory: o.TLS.Directory,
 			Hostnames: o.TLS.Hostnames,
 		})
 		if err != nil {
-			log.Fatalf("Failed to ensure PKI in %q: %v.", o.TLS.Directory, err)
+			log.WithError(err).Fatalf("Failed to ensure PKI in %q.", o.TLS.Directory)
 		}
 
-		log.Printf("Listening securely on %s (certs and keys are in %s)…", o.ListenOn, o.TLS.Directory)
+		log.WithFields(logrus.Fields{
+			"address": o.ListenOn,
+			"ca":      pkiInfo.CAFile,
+			"domains": o.TLS.Hostnames,
+		}).Print("Listening securely…")
 
-		if err := http.ListenAndServeTLS(o.ListenOn, certFile, keyFile, nil); err != nil {
+		if err := http.ListenAndServeTLS(o.ListenOn, pkiInfo.FullchainFile, pkiInfo.PrivateKeyFile, nil); err != nil {
 			log.Fatal(err)
 		}
 	} else {
-		log.Printf("Listening on %s…", o.ListenOn)
+		log.WithField("address", o.ListenOn).Print("Listening…")
 
 		if err := http.ListenAndServe(o.ListenOn, nil); err != nil {
 			log.Fatal(err)

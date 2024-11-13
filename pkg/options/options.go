@@ -18,6 +18,7 @@ type Options struct {
 	Response   string
 	Trace      bool
 	Version    bool
+	JSON       bool
 	TLS        TLSOptions
 }
 
@@ -37,6 +38,7 @@ func (o *Options) AddFlags(fs *pflag.FlagSet) {
 	fs.BoolVarP(&o.Echo, "echo", "e", o.Echo, "Respond to the client with the received request.")
 	fs.BoolVarP(&o.Trace, "trace", "t", o.Trace, "Log full request bodies on stderr.")
 	fs.BoolVarP(&o.Version, "version", "V", o.Version, "Show version info and exit immediately.")
+	fs.BoolVarP(&o.JSON, "json", "j", o.JSON, "Log in JSON instead of plaintext.")
 	fs.StringVarP(&o.Response, "response", "r", o.Response, "Send the contents of this file as the response.")
 	o.TLS.AddFlags(fs)
 }
