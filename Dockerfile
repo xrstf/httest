@@ -8,6 +8,7 @@ RUN apk add -U make git
 WORKDIR /go/src/go.xrstf.de/httest
 COPY . .
 RUN make
+RUN _build/httest --version
 
 FROM gcr.io/distroless/static-debian12:nonroot
 

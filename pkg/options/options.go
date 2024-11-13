@@ -17,6 +17,7 @@ type Options struct {
 	Echo       bool
 	Response   string
 	Trace      bool
+	Version    bool
 	TLS        TLSOptions
 }
 
@@ -35,6 +36,7 @@ func (o *Options) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVarP(&o.ServerName, "server-name", "", o.ServerName, "Unique server name to include in responses.")
 	fs.BoolVarP(&o.Echo, "echo", "e", o.Echo, "Respond to the client with the received request.")
 	fs.BoolVarP(&o.Trace, "trace", "t", o.Trace, "Log full request bodies on stderr.")
+	fs.BoolVarP(&o.Version, "version", "V", o.Version, "Show version info and exit immediately.")
 	fs.StringVarP(&o.Response, "response", "r", o.Response, "Send the contents of this file as the response.")
 	o.TLS.AddFlags(fs)
 }
