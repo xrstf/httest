@@ -1,4 +1,5 @@
 /_build/
 /.httest/
+/dist/
 *.key
 *.crt
