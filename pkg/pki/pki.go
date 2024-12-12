@@ -19,6 +19,8 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -116,10 +118,6 @@ func readValidPrivateKey(filename string) (any, error) {
 }
 
 func ensureCACertificate(log logrus.FieldLogger, filename string, key any) (*x509.Certificate, error) {
-	if cert, err := readCertificate(filename, key); err == nil {
-		return cert, nil
-	}
-
 	tmpl := x509.Certificate{
 		Subject: pkix.Name{
 			CommonName: "httest CA",
@@ -128,16 +126,16 @@ func ensureCACertificate(log logrus.FieldLogger, filename string, key any) (*x50
 		IsCA:     true,
 	}
 
+	if cert, err := validateCertificateFile(filename, key, tmpl); err == nil {
+		return cert, nil
+	}
+
 	log.WithField("file", filename).Info("Creating CA certificate…")
 
 	return makeCertificate(filename, tmpl, key, caValidity, nil, key)
 }
 
 func ensureServingCertificate(log logrus.FieldLogger, filename string, certPrivKey any, hostnames []string, caCert *x509.Certificate, caPrivKey any) (*x509.Certificate, error) {
-	if cert, err := readCertificate(filename, certPrivKey); err == nil {
-		return cert, nil
-	}
-
 	if len(hostnames) == 0 {
 		return nil, errors.New("no hostnames given")
 	}
@@ -166,12 +164,23 @@ func ensureServingCertificate(log logrus.FieldLogger, filename string, certPrivK
 		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 	}
 
-	log.WithField("file", filename).WithField("cn", hostnames[0]).Info("Creating serving certificate…")
+	cert, err := validateCertificateFile(filename, certPrivKey, tmpl)
+	if err == nil {
+		return cert, nil
+	}
+
+	term := "Creating"
+	if !errors.Is(err, os.ErrNotExist) {
+		log = log.WithField("reason", err)
+		term = "Recreating"
+	}
+
+	log.WithField("file", filename).WithField("cn", hostnames[0]).Infof("%s serving certificate…", term)
 
 	return makeCertificate(filename, tmpl, certPrivKey, servingCertValidity, caCert, caPrivKey)
 }
 
-func readCertificate(filename string, privKey any) (*x509.Certificate, error) {
+func validateCertificateFile(filename string, privKey any, template x509.Certificate) (*x509.Certificate, error) {
 	content, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, err
@@ -188,20 +197,144 @@ func readCertificate(filename string, privKey any) (*x509.Certificate, error) {
 
 	cert := certs[0]
 
+	if err := validateCertificate(cert, privKey, template); err != nil {
+		return nil, err
+	}
+
+	return cert, nil
+}
+
+func validateCertificate(cert *x509.Certificate, privKey any, template x509.Certificate) error {
 	if remaining := time.Until(cert.NotAfter); remaining < minCertValidity {
-		return nil, fmt.Errorf("certificate expires soon (in %v)", remaining)
+		return fmt.Errorf("certificate expires soon (in %v)", remaining)
+	}
+
+	if cert.Subject.CommonName != template.Subject.CommonName {
+		return fmt.Errorf("common name %q does not match desired value %q", cert.Subject.CommonName, template.Subject.CommonName)
+	}
+
+	if cert.IsCA != template.IsCA {
+		return fmt.Errorf("isCA flag does not match desired value %v", template.IsCA)
+	}
+
+	if cert.KeyUsage != template.KeyUsage {
+		return fmt.Errorf("key usage %s does not match desired value %s", formatKeyUsage(cert.KeyUsage), formatKeyUsage(template.KeyUsage))
+	}
+
+	var missing []string
+	for _, dnsName := range template.DNSNames {
+		if !slices.Contains(cert.DNSNames, dnsName) {
+			missing = append(missing, dnsName)
+		}
+	}
+	if len(missing) > 0 {
+		slices.Sort(missing)
+		return fmt.Errorf("DNS names do not contain %v", missing)
+	}
+
+	for _, ipAddress := range template.IPAddresses {
+		if !slices.ContainsFunc(cert.IPAddresses, ipAddress.Equal) {
+			missing = append(missing, ipAddress.String())
+		}
+	}
+	if len(missing) > 0 {
+		slices.Sort(missing)
+		return fmt.Errorf("IP addresses do not contain %v", missing)
+	}
+
+	for _, eku := range template.ExtKeyUsage {
+		if !slices.Contains(cert.ExtKeyUsage, eku) {
+			missing = append(missing, formatExtKeyUsage(eku))
+		}
+	}
+	if len(missing) > 0 {
+		slices.Sort(missing)
+		return fmt.Errorf("extended key usages do not contain %v", missing)
 	}
 
 	privKeyEncoded, err := encodePrivateKeyPEM(privKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to encode private key: %w", err)
+		return fmt.Errorf("failed to encode private key: %w", err)
 	}
 
 	if _, err := tls.X509KeyPair(encodeCertPEM(cert), privKeyEncoded); err != nil {
-		return nil, fmt.Errorf("failed to load key pair: %w", err)
+		return fmt.Errorf("failed to load key pair: %w", err)
 	}
 
-	return cert, nil
+	return nil
+}
+
+func formatKeyUsage(ku x509.KeyUsage) string {
+	var names []string
+	if ku&x509.KeyUsageDigitalSignature > 0 {
+		names = append(names, "DigitalSignature")
+	}
+	if ku&x509.KeyUsageContentCommitment > 0 {
+		names = append(names, "ContentCommitment")
+	}
+	if ku&x509.KeyUsageKeyEncipherment > 0 {
+		names = append(names, "KeyEncipherment")
+	}
+	if ku&x509.KeyUsageDataEncipherment > 0 {
+		names = append(names, "DataEncipherment")
+	}
+	if ku&x509.KeyUsageKeyAgreement > 0 {
+		names = append(names, "KeyAgreement")
+	}
+	if ku&x509.KeyUsageCertSign > 0 {
+		names = append(names, "CertSign")
+	}
+	if ku&x509.KeyUsageCRLSign > 0 {
+		names = append(names, "CRLSign")
+	}
+	if ku&x509.KeyUsageEncipherOnly > 0 {
+		names = append(names, "EncipherOnly")
+	}
+	if ku&x509.KeyUsageDecipherOnly > 0 {
+		names = append(names, "DecipherOnly")
+	}
+	slices.Sort(names)
+
+	if len(names) == 0 {
+		return "<none>"
+	}
+
+	return strings.Join(names, "|")
+}
+
+func formatExtKeyUsage(eku x509.ExtKeyUsage) string {
+	switch eku {
+	case x509.ExtKeyUsageAny:
+		return "Any"
+	case x509.ExtKeyUsageServerAuth:
+		return "ServerAuth"
+	case x509.ExtKeyUsageClientAuth:
+		return "ClientAuth"
+	case x509.ExtKeyUsageCodeSigning:
+		return "CodeSigning"
+	case x509.ExtKeyUsageEmailProtection:
+		return "EmailProtection"
+	case x509.ExtKeyUsageIPSECEndSystem:
+		return "IPSECEndSystem"
+	case x509.ExtKeyUsageIPSECTunnel:
+		return "IPSECTunnel"
+	case x509.ExtKeyUsageIPSECUser:
+		return "IPSECUser"
+	case x509.ExtKeyUsageTimeStamping:
+		return "TimeStamping"
+	case x509.ExtKeyUsageOCSPSigning:
+		return "OCSPSigning"
+	case x509.ExtKeyUsageMicrosoftServerGatedCrypto:
+		return "MicrosoftServerGatedCrypto"
+	case x509.ExtKeyUsageNetscapeServerGatedCrypto:
+		return "NetscapeServerGatedCrypto"
+	case x509.ExtKeyUsageMicrosoftCommercialCodeSigning:
+		return "MicrosoftCommercialCodeSigning"
+	case x509.ExtKeyUsageMicrosoftKernelCodeSigning:
+		return "MicrosoftKernelCodeSigning"
+	default:
+		return fmt.Sprintf("%d", eku)
+	}
 }
 
 func getPublicKey(privKey any) (crypto.PublicKey, error) {
@@ -242,7 +375,6 @@ func makeCertificate(filename string, certTempl x509.Certificate, certPrivKey an
 	certTempl.SerialNumber = serial
 	certTempl.NotBefore = now.UTC()
 	certTempl.NotAfter = now.Add(validity).UTC()
-	certTempl.KeyUsage = x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign
 	certTempl.BasicConstraintsValid = true
 
 	parent := caCert

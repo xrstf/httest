@@ -3,9 +3,4 @@
 
 # This is the configuration for https://github.com/xrstf/gimps.
 
-importOrder: [std, external, project, kubernetes]
-sets:
-  - name: kubernetes
-    patterns:
-      - 'k8s.io/**'
-      - '*.k8s.io/**'
+importOrder: [std, external, project]

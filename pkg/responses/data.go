@@ -19,6 +19,6 @@ func loadResponse(key string) ([]byte, error) {
 
 func respondWith(key string) server.Responder {
 	return func(_ *http.Request, _ []byte) ([]byte, error) {
-		return embeddedFS.ReadFile("data/" + key)
+		return loadResponse(key)
 	}
 }
