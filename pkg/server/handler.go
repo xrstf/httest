@@ -15,7 +15,9 @@ import (
 	"go.xrstf.de/httest/pkg/options"
 )
 
-func NewHandler(log logrus.FieldLogger, opt options.Options) http.HandlerFunc {
+type Responder func(req *http.Request, body []byte) ([]byte, error)
+
+func NewHandler(log logrus.FieldLogger, opt options.Options, responder Responder) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		logFullBody := opt.Trace && !opt.JSON
 		logContext := logrus.Fields{
@@ -52,20 +54,10 @@ func NewHandler(log logrus.FieldLogger, opt options.Options) http.HandlerFunc {
 			}
 		}
 
-		var response []byte
-
-		switch {
-		case opt.Echo:
-			response = receivedRequest
-
-		case opt.Response != "":
-			content, err := os.ReadFile(opt.Response)
-			if err != nil {
-				log.WithError(err).Error("Failed to read response file.")
-				response = []byte("Failed to read response file.\n")
-			} else {
-				response = content
-			}
+		response, err := responder(r, receivedRequest)
+		if err != nil {
+			log.WithError(err).Error("Failed to generate response.")
+			response = []byte("Failed to generate response.\n")
 		}
 
 		log.WithFields(logContext).Info("Request")

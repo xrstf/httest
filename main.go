@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"net/http"
 	"runtime"
+	"slices"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 
 	"go.xrstf.de/httest/pkg/options"
 	"go.xrstf.de/httest/pkg/pki"
+	"go.xrstf.de/httest/pkg/responses"
 	"go.xrstf.de/httest/pkg/server"
 )
 
@@ -65,7 +67,12 @@ func main() {
 		log.WithError(err).Fatal("Invalid options.")
 	}
 
-	http.HandleFunc("/", server.NewHandler(log, o))
+	if o.ListResponses {
+		listBuiltInResponses()
+		return
+	}
+
+	http.HandleFunc("/", server.NewHandler(log, o, buildResponder(log, o)))
 
 	if o.TLS.Enabled {
 		pkiInfo, err := pki.EnsurePKI(log, pki.Options{
@@ -91,5 +98,56 @@ func main() {
 		if err := http.ListenAndServe(o.ListenOn, nil); err != nil {
 			log.Fatal(err)
 		}
+	}
+}
+
+func buildResponder(log logrus.FieldLogger, opt options.Options) server.Responder {
+	var responder server.Responder
+	if opt.Response != "" {
+		info, exists := responses.BuiltIn[opt.Response]
+		if !exists {
+			responder = responses.File(opt.Response)
+
+			rlog := log.WithField("file", opt.Response)
+
+			// try to read the file
+			_, err := responder(nil, nil)
+			if err != nil {
+				rlog.WithError(err).Warn("Cannot read file.")
+			} else {
+				rlog.Info("Responding with file contents.")
+			}
+		} else {
+			responder = info.Responder
+			log.WithField("responder", opt.Response).Info("Using built-in responder.")
+		}
+	} else {
+		responder = responses.Nop()
+	}
+
+	return responder
+}
+
+func listBuiltInResponses() {
+	var (
+		identifiers []string
+		maxLength   int
+	)
+	for identifier := range responses.BuiltIn {
+		identifiers = append(identifiers, identifier)
+		if l := len(identifier); l > maxLength {
+			maxLength = l
+		}
+	}
+	slices.Sort(identifiers)
+
+	fmt.Println("The following identifiers can be used for --response:")
+	fmt.Println("")
+
+	format := fmt.Sprintf("  %%-%ds   %%s\n", maxLength)
+
+	for _, identifier := range identifiers {
+		info := responses.BuiltIn[identifier]
+		fmt.Printf(format, identifier, info.Description)
 	}
 }

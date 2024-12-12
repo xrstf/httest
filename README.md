@@ -11,11 +11,12 @@ or use the container images at `ghcr.io/xrstf/httest`.
 
 ```
 Usage of httest:
-  -e, --echo                    Respond to the client with the received request.
+  -e, --echo                    Respond to the client with the received request (shortcut for --response echo).
   -j, --json                    Log in JSON instead of plaintext.
   -l, --listen string           Hostname and port to listen on. (default "localhost:8080")
       --pki-directory string    Directory where CA and serving certificate should be created in. (default ".httest")
-  -r, --response string         Send the contents of this file as the response.
+  -r, --response string         Either the identifier for a built-in response (like "kubernetes:deny") or a path to a file that is read per-request and sent in response to the client.
+  -R, --responses               List all built-in responses.
       --server-name string      Unique server name to include in responses.
       --tls                     Use TLS with a self-signed certificate.
   -n, --tls-hostnames strings   Comma-separated list of domain names to include in the serving certificate. (default [localhost,127.0.0.1])
@@ -42,6 +43,7 @@ Use `--echo` to respond to the client with the incoming request.
 
 ```bash
 $ httest --echo
+INFO[2024-11-13T21:42:14+01:00] Using built-in responder.                     responder=echo
 INFO[2024-11-13T21:42:14+01:00] Listening…                                    address=localhost:8080
 ```
 
@@ -111,10 +113,24 @@ $ httest --tls --json --trace
 }
 ```
 
-### Responding with a file
+### Customizing the response
 
 `httest` can send out a file given by `--response`. This file is re-read on every request and so can
 be updated externally during runtime.
+
+Additionally, `--response` can be one of the built-in responder names. These give quick(er) access
+to commonly required responses, like a SubjectAccessReview denial in Kubernetes. Use
+`--list-responses` (or `-R`) to see all built-in responders:
+
+```bash
+$ httest -R
+The following identifiers can be used for --response:
+
+  echo                          echoes the incoming request varbatim to the client
+  kubernetes:authz:allow        responds with a Kubernetes SubjectAccessReview with status.allowed=true
+  kubernetes:authz:deny         responds with a Kubernetes SubjectAccessReview with status.denied=true
+  kubernetes:authz:no-opinion   responds with a Kubernetes SubjectAccessReview with status.allowed=false
+```
 
 ### HTTPS / TLS
 
