@@ -1,6 +1,6 @@
 module go.xrstf.de/httest
 
-go 1.23.3
+go 1.22.0
 
 require (
 	github.com/sirupsen/logrus v1.9.3
