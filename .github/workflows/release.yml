@@ -30,12 +30,15 @@ jobs:
       # https://github.com/actions/checkout
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # fetch full history to allow goreleaser to generate the full changelog
+          fetch-depth: 0
 
       # https://github.com/actions/setup-go
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23'
+          go-version: '1.24'
 
       # https://github.com/docker/login-action
       - name: Docker Login
@@ -58,7 +61,7 @@ jobs:
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
-          version: latest
+          version: '~> v2'
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GHCR_DEPLOY_TOKEN }}
