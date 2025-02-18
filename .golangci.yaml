@@ -33,9 +33,9 @@ linters:
     - predeclared
     - promlinter
     - staticcheck
-    - tenv
     - unconvert
     - unused
+    - usetesting
     - wastedassign
     - whitespace
 
