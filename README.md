@@ -1,13 +1,20 @@
-# httest
+# Migration note
+
+> [!IMPORTANT]
+> `httest` has been migrated to [codeberg.org/xrstf/httest](https://codeberg.org/xrstf/httest).
+
+---
+
+## httest
 
 A dead-simple HTTP/HTTPS test server for developers.
 
-## Installation
+### Installation
 
 Get the binaries from the [GitHub releases](https://github.com/xrstf/httest/releases)
 or use the container images at `ghcr.io/xrstf/httest`.
 
-## Usage
+### Usage
 
 ```
 Usage of httest:
@@ -24,7 +31,7 @@ Usage of httest:
   -V, --version                 Show version info and exit immediately.
 ```
 
-### Basics
+#### Basics
 
 Running `httest` without any arguments will simply start a receive-only webserver on port 8080 that
 logs incoming requests:
@@ -37,7 +44,7 @@ INFO[2024-11-13T21:42:21+01:00] Request                                       me
 
 Use `--listen` to change the address and port to listen on.
 
-### Echo requests
+#### Echo requests
 
 Use `--echo` to respond to the client with the incoming request.
 
@@ -59,7 +66,7 @@ User-Agent: curl/8.5.0
 foobar
 ```
 
-### Trace requests
+#### Trace requests
 
 Use `--trace` to log the full request to stderr:
 
@@ -78,7 +85,7 @@ foobar
 
 ```
 
-### JSON logging
+#### JSON logging
 
 With `--json` `httest` will format each log line as JSON.
 
@@ -113,7 +120,7 @@ $ httest --tls --json --trace
 }
 ```
 
-### Customizing the response
+#### Customizing the response
 
 `httest` can send out a file given by `--response`. This file is re-read on every request and so can
 be updated externally during runtime.
@@ -132,7 +139,7 @@ The following identifiers can be used for --response:
   kubernetes:authz:no-opinion   responds with a Kubernetes SubjectAccessReview with status.allowed=false
 ```
 
-### HTTPS / TLS
+#### HTTPS / TLS
 
 `httest` comes with its own very primitive PKI implementation. When `--tls` is given, `httest` will
 generate a self-signed CA and a serving certificate for itself. These will be stored, together with
@@ -146,7 +153,7 @@ INFO[2024-11-13T21:46:04+01:00] Listening securely…                           
 Use `--tls-hostnames` to override the altnames in the generated certificate. This flag can contain
 a comma-separated list of domains or IPs, and the flag itself can be provided multiple times.
 
-### Docker
+#### Docker
 
 `httest` is available as a container image at [ghcr.io/xrstf/httest](https://github.com/xrstf/httest/pkgs/container/httest):
 
@@ -155,6 +162,6 @@ $ docker run --rm -p 8080:8080 ghcr.io/xrstf/httest:0.2.0 --json --listen 0.0.0.
 {"address":"0.0.0.0:8080","level":"info","msg":"Listening…","time":"2024-11-13T20:57:15Z"}
 ```
 
-## License
+### License
 
 MIT
